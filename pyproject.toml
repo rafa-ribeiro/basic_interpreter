@@ -10,8 +10,16 @@ packages = [{include = "basic_interpreter"}]
 python = "^3.10"
 lint = "^1.2.1"
 ruff = "^0.5.7"
+poethepoet = "^0.27.0"
 
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+
+[tool.poe.tasks]
+
+[tool.poe.tasks.lint-fix]
+help = "Run ruff linters and fix issues automatically"
+cmd = "poetry run ruff check --fix"
