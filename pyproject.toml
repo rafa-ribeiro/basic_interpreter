@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "basic-interpreter"
+version = "0.1.0"
+description = ""
+authors = ["Rafael Ribeiro <tecinfo.rafael@gmail.com>"]
+readme = "README.md"
+packages = [{include = "basic_interpreter"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+lint = "^1.2.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
