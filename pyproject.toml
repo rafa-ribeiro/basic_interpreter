@@ -9,6 +9,7 @@ packages = [{include = "basic_interpreter"}]
 [tool.poetry.dependencies]
 python = "^3.10"
 lint = "^1.2.1"
+ruff = "^0.5.7"
 
 
 [build-system]
