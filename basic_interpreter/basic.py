@@ -124,6 +124,7 @@ TT_PLUS = "PLUS"
 TT_MINUS = "MINUS"
 TT_MUL = "MUL"
 TT_DIV = "DIV"
+TT_POW = "POW"
 TT_LPAREN = "LPAREN"
 TT_RPAREN = "RPAREN"
 TT_EOF = "EOF"
@@ -181,8 +182,16 @@ class Lexer:
                 tokens.append(Token(TT_MINUS, pos_start=self.pos))
                 self.advance()
             elif self.current_char == "*":
-                tokens.append(Token(TT_MUL, pos_start=self.pos))
+                # tokens.append(Token(TT_MUL, pos_start=self.pos))
+                # self.advance()
+                prev_pos = self.pos
                 self.advance()
+                if self.current_char == "*":
+                    tokens.append(Token(TT_POW, pos_start=prev_pos))
+                    self.advance()
+                else:
+                    tokens.append(Token(TT_MUL, pos_start=prev_pos))
+
             elif self.current_char == "/":
                 tokens.append(Token(TT_DIV, pos_start=self.pos))
                 self.advance()
@@ -332,19 +341,11 @@ class Parser:
 
         return res
 
-    def factor(self):
+    def atom(self):
         res = ParseResult()
         tok = self.current_tok
 
-        if tok.type in (TT_PLUS, TT_MINUS):
-            res.register(self.advance())
-            factor = res.register(self.factor())
-            if res.error:
-                return res
-
-            return res.success(UnaryOpNode(op_tok=tok, node=factor))
-
-        elif tok.type in (TT_INT, TT_FLOAT):
+        if tok.type in (TT_INT, TT_FLOAT):
             res.register(self.advance())
             return res.success(NumberNode(tok))
 
@@ -370,28 +371,50 @@ class Parser:
             InvalidSyntaxError(
                 pos_start=tok.pos_start,
                 pos_end=tok.pos_end,
-                details="Expected int or float",
+                details="Expected int, float, '+', '-' or '('",
             )
         )
 
+    def power(self):
+        return self.bin_op(
+            atomic_func=self.atom, ops=(TT_POW,), factor_func=self.factor
+        )
+
+    def factor(self):
+        res = ParseResult()
+        tok = self.current_tok
+
+        if tok.type in (TT_PLUS, TT_MINUS):
+            res.register(self.advance())
+            factor = res.register(self.factor())
+            if res.error:
+                return res
+
+            return res.success(UnaryOpNode(op_tok=tok, node=factor))
+
+        return self.power()
+
     def term(self):
-        return self.bin_op(func=self.factor, ops=(TT_MUL, TT_DIV))
+        return self.bin_op(atomic_func=self.factor, ops=(TT_MUL, TT_DIV, TT_POW))
 
     def expr(self):
-        return self.bin_op(func=self.term, ops=(TT_PLUS, TT_MINUS))
+        return self.bin_op(atomic_func=self.term, ops=(TT_PLUS, TT_MINUS))
 
     #############################################
 
-    def bin_op(self, func, ops):
+    def bin_op(self, atomic_func, ops, factor_func=None):
+        if factor_func is None:
+            factor_func = atomic_func
+
         res = ParseResult()
-        left = res.register(func())
+        left = res.register(atomic_func())
         if res.error:
             return res
 
         while self.current_tok.type in ops:
             op_tok = self.current_tok
             res.register(self.advance())
-            right = res.register(func())
+            right = res.register(factor_func())
 
             if res.error:
                 return res
@@ -470,6 +493,10 @@ class Number:
                 )
             return Number(self.value / other.value).set_context(self.context), None
 
+    def powed_by(self, other):
+        if isinstance(other, Number):
+            return Number(self.value**other.value).set_context(self.context), None
+
     def __repr__(self) -> str:
         return str(self.value)
 
@@ -528,6 +555,8 @@ class Interpreter:
             result, error = left.multed_by(right)
         if op_tok.type == TT_DIV:
             result, error = left.dived_by(right)
+        if op_tok.type == TT_POW:
+            result, error = left.powed_by(right)
 
         if error:
             return res.failure(error=error)
@@ -557,7 +586,7 @@ class Interpreter:
 # RUN
 #############################################
 
-#  TODO: Continuar Aula 03 BÔNUS - começo do vídeo
+#  TODO: Continuar Aula 04 - começo do vídeo
 
 
 def run(filename: str, text: str):
