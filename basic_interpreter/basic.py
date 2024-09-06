@@ -174,7 +174,6 @@ class Lexer:
                 self.advance()
             elif self.current_char in DIGITS:
                 tokens.append(self.make_number())
-                # self.advance()
             elif self.current_char == "+":
                 tokens.append(Token(TT_PLUS, pos_start=self.pos))
                 self.advance()
@@ -182,8 +181,6 @@ class Lexer:
                 tokens.append(Token(TT_MINUS, pos_start=self.pos))
                 self.advance()
             elif self.current_char == "*":
-                # tokens.append(Token(TT_MUL, pos_start=self.pos))
-                # self.advance()
                 prev_pos = self.pos
                 self.advance()
                 if self.current_char == "*":
