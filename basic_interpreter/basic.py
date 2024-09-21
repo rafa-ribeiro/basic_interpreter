@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 import re
 from sre_constants import POSSESSIVE_REPEAT_ONE
-from typing import Optional
+from typing import List, Optional
 
 from strings_with_arrows import string_with_arrows
 import string
@@ -153,7 +153,7 @@ TT_LTE = "LTE"  # Less Than Equal
 TT_GTE = "GTE"  # Grater Than Equal
 TT_EOF = "EOF"
 
-KEYWORDS = ["VAR", "AND", "OR", "NOT"]
+KEYWORDS = ["VAR", "AND", "OR", "NOT", "IF", "THEN", "ELIF", "ELSE"]
 
 
 class Token:
@@ -392,6 +392,16 @@ class UnaryOpNode:
         return f"({self.op_tok}, {self.node})"
 
 
+class IfNode:
+
+    def __init__(self, cases, else_case):
+        self.cases = cases
+        self.else_case = else_case
+
+        self.pos_start = self.cases[0][0].pos_start
+        self.pos_end = (self.else_case or self.cases[-1][0]).pos_end
+
+
 #############################################
 # PARSER RESULT
 #############################################
@@ -457,6 +467,81 @@ class Parser:
 
         return res
 
+    def if_expr(self):
+        res = ParseResult()
+        cases = []
+        else_case = None
+
+        if not self.current_tok.matches(TT_KEYWORD, "IF"):
+            return res.failure(
+                InvalidSyntaxError(
+                    self.current_tok.pos_start,
+                    self.current_tok.pos_end,
+                    f"Expected 'IF'",
+                )
+            )
+
+        res.register_advancement()
+        self.advance()
+
+        condition = res.register(self.expr())
+        if res.error:
+            return res
+
+        if not self.current_tok.matches(TT_KEYWORD, "THEN"):
+            return res.failure(
+                InvalidSyntaxError(
+                    self.current_tok.pos_start,
+                    self.current_tok.pos_end,
+                    f"Expected 'THEN'",
+                )
+            )
+
+        res.register_advancement()
+        self.advance()
+
+        expr = res.register(self.expr())
+        if res.error:
+            return res
+
+        cases.append((condition, expr))
+
+        while self.current_tok.matches(TT_KEYWORD, "ELIF"):
+            res.register_advancement()
+            self.advance()
+
+            condition = res.register(self.expr())
+            if res.error:
+                return res
+
+            if not self.current_tok.matches(TT_KEYWORD, "THEN"):
+                return res.failure(
+                    InvalidSyntaxError(
+                        self.current_tok.pos_start,
+                        self.current_tok.pos_end,
+                        f"Expected 'THEN'",
+                    )
+                )
+
+            res.register_advancement()
+            self.advance()
+
+            expr = res.register(self.expr())
+            if res.error:
+                return res
+
+            cases.append((condition, expr))
+
+        if self.current_tok.matches(TT_KEYWORD, "ELSE"):
+            res.register_advancement()
+            self.advance()
+
+            else_case = res.register(self.expr())
+            if res.error:
+                return res
+
+        return res.success(IfNode(cases, else_case))
+
     def atom(self):
         res = ParseResult()
         tok = self.current_tok
@@ -494,6 +579,13 @@ class Parser:
                         details="Expected ')'",
                     )
                 )
+
+        elif tok.matches(TT_KEYWORD, "IF"):
+            if_expr = res.register(self.if_expr())
+            if res.error:
+                return res
+
+            return res.success(if_expr)
 
         return res.failure(
             InvalidSyntaxError(
@@ -773,6 +865,9 @@ class Number:
         copy.set_context(self.context)
         return copy
 
+    def is_true(self):
+        return self.value != 0
+
     def __repr__(self) -> str:
         return str(self.value)
 
@@ -929,6 +1024,29 @@ class Interpreter:
             number.set_pos(pos_start=node.pos_start, pos_end=node.pos_end)
         )
 
+    def visit_IfNode(self, node, context):
+        res = RTResult()
+
+        for condition, expr in node.cases:
+            condition_value = res.register(self.visit(condition, context))
+            if res.error:
+                return res
+
+            if condition_value.is_true():
+                expr_value = res.register(self.visit(expr, context))
+                if res.error:
+                    return res
+
+                return res.success(expr_value)
+
+        if node.else_case:
+            else_value = res.register(self.visit(node.else_case, context))
+            if res.error:
+                return res
+            return res.success(else_value)
+
+        return res.success(None)
+
 
 #############################################
 # RUN
@@ -940,7 +1058,7 @@ global_symbol_table.set("TRUE", Number(1))
 global_symbol_table.set("FALSE", Number(0))
 
 
-#  TODO: Continuar Aula 04 - 8:51
+#  TODO: Começar a aula 7
 
 
 def run(filename: str, text: str):
