@@ -9,9 +9,11 @@ packages = [{include = "basic_interpreter"}]
 [tool.poetry.dependencies]
 python = "^3.10"
 lint = "^1.2.1"
-ruff = "^0.5.7"
 poethepoet = "^0.27.0"
 
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.6.7"
 
 [build-system]
 requires = ["poetry-core"]
