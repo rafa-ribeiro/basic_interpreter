@@ -1,6 +1,3 @@
-from os import error
-
-# from strings_with_arrows import string_with_arrows
 from basic_interpreter.strings_with_arrows import string_with_arrows
 import string
 import traceback
