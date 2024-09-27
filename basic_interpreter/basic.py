@@ -1,3 +1,4 @@
+from re import escape
 from basic_interpreter.strings_with_arrows import string_with_arrows
 import string
 import traceback
@@ -131,6 +132,7 @@ class RuntimeError(Error):
 
 TT_INT = "INT"
 TT_FLOAT = "FLOAT"
+TT_STRING = "STRING"
 TT_IDENTIFIER = "IDENTIFIER"  # the name of the variable
 TT_KEYWORD = "KEYWORD"  # The type of the variable
 TT_PLUS = "PLUS"
@@ -219,6 +221,8 @@ class Lexer:
                 tokens.append(self.make_number())
             elif self.current_char in LETTERS:
                 tokens.append(self.make_identifier())
+            elif self.current_char == '"':
+                tokens.append(self.make_string())
             elif self.current_char == "+":
                 tokens.append(Token(TT_PLUS, pos_start=self.pos))
                 self.advance()
@@ -306,6 +310,33 @@ class Lexer:
             _type=tok_type, value=id_str, pos_start=pos_start, pos_end=self.pos
         )
 
+    def make_string(self):
+        string = ""
+        pos_start = self.pos.copy()
+        escape_character = False
+        self.advance()
+
+        escape_characters = {"n": "\n", "t": "\t"}
+
+        while self.current_char != None and (
+            self.current_char != '"' or escape_character
+        ):
+            if escape_character:
+                string += escape_characters.get(self.current_char, self.current_char)
+                escape_character = False
+            else:
+                if self.current_char == "\\":
+                    escape_character = True
+                else:
+                    string += self.current_char
+            self.advance()
+            # escape_character = False
+
+        self.advance()
+        return Token(
+            _type=TT_STRING, value=string, pos_start=pos_start, pos_end=self.pos
+        )
+
     def make_minus_or_arrow(self):
         tok_type = TT_MINUS
         pos_start = self.pos.copy()
@@ -368,6 +399,16 @@ class Lexer:
 
 
 class NumberNode:
+    def __init__(self, tok):
+        self.tok = tok
+        self.pos_start = tok.pos_start
+        self.pos_end = tok.pos_end
+
+    def __repr__(self) -> str:
+        return f"{self.tok}"
+
+
+class StringNode:
     def __init__(self, tok):
         self.tok = tok
         self.pos_start = tok.pos_start
@@ -719,6 +760,12 @@ class Parser:
             self.advance()
 
             return res.success(NumberNode(tok))
+
+        if tok.type == TT_STRING:
+            res.register_advancement()
+            self.advance()
+
+            return res.success(StringNode(tok))
 
         elif tok.type == TT_IDENTIFIER:
             res.register_advancement()
@@ -1340,6 +1387,43 @@ class Number(Value):
         return str(self.value)
 
 
+class String(Value):
+
+    def __init__(self, value):
+        super().__init__()
+        self.value = value
+
+    def added_to(self, other):
+        if isinstance(other, String):
+            return (
+                String(value=self.value + other.value).set_context(self.context),
+                None,
+            )
+
+        return None, Value.illegal_operation(self, other)
+
+    def multed_by(self, other):
+        if isinstance(other, Number):
+            return (
+                String(value=self.value * other.value).set_context(self.context),
+                None,
+            )
+
+        return None, Value.illegal_operation(self, other)
+
+    def is_true(self):
+        return len(self.value) > 0
+
+    def copy(self):
+        copy = String(self.value)
+        copy.set_pos(self.pos_start, self.pos_end)
+        copy.set_context(self.context)
+        return copy
+
+    def __repr__(self) -> str:
+        return f'"{self.value}"'
+
+
 class Function(Value):
 
     def __init__(self, name, body_node, arg_names):
@@ -1451,6 +1535,13 @@ class Interpreter:
     def visit_NumberNode(self, node, context):
         return RTResult().success(
             Number(node.tok.value)
+            .set_context(context)
+            .set_pos(pos_start=node.pos_start, pos_end=node.pos_end)
+        )
+
+    def visit_StringNode(self, node, context):
+        return RTResult().success(
+            String(node.tok.value)
             .set_context(context)
             .set_pos(pos_start=node.pos_start, pos_end=node.pos_end)
         )
@@ -1675,7 +1766,7 @@ global_symbol_table.set("TRUE", Number(1))
 global_symbol_table.set("FALSE", Number(0))
 
 
-#  TODO: Finalizei a aula 8, irei começar a 9, mas há um erro ocorrendo ao chamar uma função com um número de argumentos diferentes do esperado
+#  TODO: Vou começar a aula 9
 
 
 def run(filename: str, text: str):
