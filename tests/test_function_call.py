@@ -4,8 +4,8 @@ from basic_interpreter import basic
 def test__function_call_works():
     command = "FUN soma(a, b) -> a + b"
     _, _ = basic.run("<stdin>", command)
-    result, error = basic.run("<stdin>", "soma(3, 5)")
-    assert result.value == 8
+    result, _ = basic.run("<stdin>", "soma(3, 5)")
+    assert result.elements[0].value == 8
 
 
 def test__function_call_with_too_few_args():
